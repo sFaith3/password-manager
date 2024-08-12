@@ -9,7 +9,7 @@ from tkinter import *
 from tkinter import messagebox
 
 SALT_SIZE = 16  # Size salt in bytes
-DATA_FILE = "data.xd"
+DATA_FILE = "../data.xd"
 
 letters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
            'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R',
@@ -50,22 +50,23 @@ def login():
         messagebox.showinfo(title="Oops", message="No user exists!")
         return
 
-    with open(DATA_FILE, "rb") as encrypted_file:
-        first_line = encrypted_file.readline()
-        salt = first_line[:SALT_SIZE]
-        encrypted_message = first_line[SALT_SIZE:].strip()
-        user_key = derive_key(master_password, salt)
+    try:
+        with open(DATA_FILE, "rb") as encrypted_file:
+            first_line = encrypted_file.readline()
+            salt = first_line[:SALT_SIZE]
+            encrypted_message = first_line[SALT_SIZE:].strip()
+            user_key = derive_key(master_password, salt)
 
-        cipher = Fernet(user_key)
-        global is_logged
+            cipher = Fernet(user_key)
+            global is_logged
 
-        try:
             cipher.decrypt(encrypted_message).decode()
             is_logged = True
             messagebox.showinfo(title="Login", message="Successfully login!")
-        except Exception as e:
-            is_logged = False
-            messagebox.showinfo(title="Oops", message=f"Invalid password! {e}")
+
+    except Exception as e:
+        is_logged = False
+        messagebox.showinfo(title="Oops", message=f"Invalid password! {e}")
 
     if is_logged:
         global master_password_logged
@@ -121,27 +122,38 @@ def change_master_password():
         return
 
     global master_password_logged
-    with open(DATA_FILE, "rb+") as encrypted_file:
-        first_line = encrypted_file.readline()
-        salt = first_line[:SALT_SIZE]
-        encrypted_message = first_line[SALT_SIZE:].strip()
-        user_key = derive_key(master_password_logged, salt)
+    updated_lines = []  # Re-encrypt all existing passwords with the new master password
 
-        cipher = Fernet(user_key)
-        try:
-            cipher.decrypt(encrypted_message)
+    try:
+        with open(DATA_FILE, "rb") as encrypted_file:
+            is_current_line_first = True
+            for line in encrypted_file:
+                salt = line[:SALT_SIZE]
+                encrypted_message = line[SALT_SIZE:].strip()
+                user_key = derive_key(master_password_logged, salt)
 
-            salt = os.urandom(SALT_SIZE)
-            user_key = derive_key(master_password, salt)
-            cipher = Fernet(user_key)
+                cipher = Fernet(user_key)
+                decrypted_message = cipher.decrypt(encrypted_message).decode()
+                if is_current_line_first:
+                    is_current_line_first = False
+                    if decrypted_message == master_password_logged:
+                        decrypted_message = master_password
 
-            new_encrypted_message = cipher.encrypt(master_password.encode())
-            # Go to the beginning of the file and type the new line
-            encrypted_file.seek(0)
-            encrypted_file.write(salt + new_encrypted_message + b'\n')
-        except Exception as e:
-            messagebox.showinfo(f"Error changing master password! {e}")
-            return
+                # Generate a new salt and re-encrypt with the new master password
+                new_salt = os.urandom(SALT_SIZE)
+                new_user_key = derive_key(master_password, new_salt)
+                new_cipher = Fernet(new_user_key)
+                new_encrypted_message = new_cipher.encrypt(decrypted_message.encode())
+
+                updated_lines.append(new_salt + new_encrypted_message + b'\n')
+
+    except Exception as e:
+        messagebox.showinfo(title="Oops", message=f"Error changing master password! {e}")
+        return
+
+    # Write all the updated lines back to the file
+    with open(DATA_FILE, "wb") as encrypted_file:
+        encrypted_file.writelines(updated_lines)
 
     master_password_logged = master_password
     messagebox.showinfo(title="Login", message="The master password has been successfully changed!")
@@ -231,22 +243,23 @@ def open_passwords_window():
 
     passwords_window.protocol("WM_DELETE_WINDOW", close_passwords_window)
 
-    passwords_text = Text(passwords_window, wrap="word", width=60, height=20)
+    passwords_text = Text(passwords_window, wrap="word", width=90, height=25)
     passwords_text.pack(padx=10, pady=10)
 
-    with open(DATA_FILE, "rb") as encrypted_file:
-        for line in encrypted_file:
-            salt = line[:SALT_SIZE]
-            encrypted_message = line[SALT_SIZE:].strip()
-            user_key = derive_key(master_password_logged, salt)
+    try:
+        with open(DATA_FILE, "rb") as encrypted_file:
+            for line in encrypted_file:
+                salt = line[:SALT_SIZE]
+                encrypted_message = line[SALT_SIZE:].strip()
+                user_key = derive_key(master_password_logged, salt)
 
-            cipher = Fernet(user_key)
-            try:
+                cipher = Fernet(user_key)
                 decrypted_message = cipher.decrypt(encrypted_message).decode()
                 passwords_text.insert(END, decrypted_message + "\n")
-            except Exception as e:
-                messagebox.showinfo(title="Oops", message=f"Error decrypting password! {e}")
-                return
+
+    except Exception as e:
+        messagebox.showinfo(title="Oops", message=f"Error decrypting password! {e}")
+        return
 
     passwords_text.config(state="disabled")  # Make the text in the Text widget selectable and copyable
 
@@ -269,16 +282,16 @@ def edit_password():
     found = False
     decrypted_lines = []
 
-    # Read the file and search for the entry
-    with open(DATA_FILE, "rb") as encrypted_file:
-        is_current_line_first = True
-        for line in encrypted_file:
-            salt = line[:SALT_SIZE]
-            encrypted_message = line[SALT_SIZE:].strip()
-            user_key = derive_key(master_password_logged, salt)
+    try:
+        # Read the file and search for the entry
+        with open(DATA_FILE, "rb") as encrypted_file:
+            is_current_line_first = True
+            for line in encrypted_file:
+                salt = line[:SALT_SIZE]
+                encrypted_message = line[SALT_SIZE:].strip()
+                user_key = derive_key(master_password_logged, salt)
 
-            cipher = Fernet(user_key)
-            try:
+                cipher = Fernet(user_key)
                 decrypted_message = cipher.decrypt(encrypted_message).decode()
                 decrypted_lines.append((salt, decrypted_message))  # Save the decrypted message with its salt
 
@@ -294,9 +307,10 @@ def edit_password():
                     edit_button.config(text="Update", command=update_password)
                     add_button["state"] = "disabled"
                     found = True
-            except Exception as e:
-                messagebox.showinfo(title="Oops", message=f"Error decrypting password! {e}")
-                return
+
+    except Exception as e:
+        messagebox.showinfo(title="Oops", message=f"Error decrypting password! {e}")
+        return
 
     if not found:
         messagebox.showinfo(title="Oops", message="No matching entry found.")
@@ -307,42 +321,46 @@ def edit_password():
         decrypted_password_lines_for_edit = decrypted_lines
 
 
-def update_password():
+def update_password(is_deleting=False):
     website = website_entry.get()
     email = email_entry.get()
     new_password = password_entry.get()
 
-    if len(website) == 0 or len(email) == 0 or len(new_password) == 0:
-        messagebox.showinfo(title="Oops", message="Please fill in all fields before update.")
+    if not is_deleting:
+        if len(website) == 0 or len(email) == 0 or len(new_password) == 0:
+            messagebox.showinfo(title="Oops", message="Please fill in all fields before update.")
+            return
+    elif len(website) == 0 or len(email) == 0:
+        messagebox.showinfo(title="Oops", message="Please fill in both the Website and Email fields.")
         return
 
     updated_lines = []
     updated = False
     is_current_line_first = True
 
-    # Update the relevant entry
-    for salt, decrypted_message in decrypted_password_lines_for_edit:
-        user_key = derive_key(master_password_logged, salt)
-        cipher = Fernet(user_key)
-        new_encrypted_message = decrypted_message
+    try:
+        for salt, decrypted_message in decrypted_password_lines_for_edit:
+            user_key = derive_key(master_password_logged, salt)
+            cipher = Fernet(user_key)
 
-        if is_current_line_first:
-            is_current_line_first = False
-        else:
-            stored_website, stored_email, stored_password = decrypted_message.split(" | ")
-            if stored_website == website and stored_email == email:
-                new_encrypted_message = f"{website} | {email} | {new_password}"
-                updated = True
+            new_encrypted_message = decrypted_message
+            if is_current_line_first:
+                is_current_line_first = False
+            elif not is_deleting:
+                stored_website, stored_email, stored_password = decrypted_message.split(" | ")
+                if stored_website == website and stored_email == email:
+                    new_encrypted_message = f"{website} | {email} | {new_password}"
+                    updated = True
 
-        try:
             encrypted_message = cipher.encrypt(new_encrypted_message.encode())
             updated_lines.append(salt + encrypted_message + b'\n')
-        except Exception as e:
-            messagebox.showinfo(title="Oops", message=f"Error encrypting password! {e}")
-            delete_entries()
-            return
 
-    if updated:
+    except Exception as e:
+        messagebox.showinfo(title="Oops", message=f"Error encrypting password! {e}")
+        delete_entries()
+        return
+
+    if updated or is_deleting:
         # Write all lines back to the file
         with open(DATA_FILE, "wb") as encrypted_file:
             encrypted_file.writelines(updated_lines)
@@ -389,9 +407,11 @@ def delete_password():
                 # Check if the entry matches the website and email
                 stored_website, stored_email, stored_password = decrypted_message.split(" | ")
                 if stored_website == website and stored_email == email:
+                    password = stored_password
                     found = True
                 else:
                     decrypted_lines.append((salt, decrypted_message))
+
             except Exception as e:
                 messagebox.showinfo(title="Oops", message=f"Error decrypting password! {e}")
                 return
@@ -403,13 +423,13 @@ def delete_password():
         is_ok = messagebox.askokcancel(title=website, message=f"These are the details to delete: "
                                                               f"\nWebsite: {website} "
                                                               f"\nEmail/Username: {email} "
-                                                              f"\nPassword: {stored_password} "
+                                                              f"\nPassword: {password} "
                                                               f"\nIs it ok to save?")
         if is_ok:
             # Store the decrypted lines globally, so they can be reused in save_edited_password
             global decrypted_password_lines_for_edit
             decrypted_password_lines_for_edit = decrypted_lines
-            update_password()
+            update_password(True)
 
 
 # ---------------------------- UI SETUP ------------------------------- #
