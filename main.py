@@ -12,8 +12,8 @@ from tkinter import *
 from tkinter import messagebox
 
 SALT_SIZE = 16  # Size salt in bytes
-DATA_FILE = "../data.xd"
-LOCK_FILE = "../data.lock"
+DATA_FILE = "data.xd"
+LOCK_FILE = "data.lock"
 
 letters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
            'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R',
@@ -493,7 +493,7 @@ def delete_entries():
 
 window = Tk()
 window.title("Password Manager")
-logo_img = PhotoImage(file="../resources/logo.png")
+logo_img = PhotoImage(file="resources/logo.png")
 window.iconphoto(False, logo_img)
 window.config(padx=50, pady=50)
 
