@@ -3,8 +3,8 @@
 </p>
 
 # Password Manager
-A simple password manager with encryption made with Python for Windows and Mac.
+An encrypted password manager made with Python for Windows and Mac.
 
 <p align="center">
-  <img alt="password-manager-main-screen" src="https://github.com/user-attachments/assets/57debc25-e3aa-4e47-84ec-533570456542">
+  <img alt="password-manager-main-screen" src="https://github.com/user-attachments/assets/005ef599-c012-4574-b3e6-7548c2dffbbf">
 </p>
