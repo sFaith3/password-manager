@@ -1,4 +1,7 @@
 import os
+import shutil
+import tempfile
+import time
 from base64 import urlsafe_b64encode
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
@@ -10,6 +13,7 @@ from tkinter import messagebox
 
 SALT_SIZE = 16  # Size salt in bytes
 DATA_FILE = "../data.xd"
+LOCK_FILE = "../data.lock"
 
 letters = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
            'w', 'x', 'y', 'z', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R',
@@ -22,6 +26,20 @@ master_password_logged = ""
 passwords_window_open = False
 passwords_window = None
 decrypted_password_lines_for_edit = ""
+
+
+# ---------------------------- LOCK FILE SYSTEM ------------------------------- #
+def acquire_lock():
+    while os.path.exists(LOCK_FILE):
+        time.sleep(0.1)  # Wait 100ms if the file is locked
+
+    with open(LOCK_FILE, "w") as lock_file:
+        lock_file.write("locked")
+
+
+def release_lock():
+    if os.path.exists(LOCK_FILE):
+        os.remove(LOCK_FILE)
 
 
 # ---------------------------- LOGIN/REGISTER/CHANGE ------------------------------- #
@@ -112,6 +130,14 @@ def register():
         delete_entries()
 
 
+def write_passwords_safely(updated_lines):
+    with tempfile.NamedTemporaryFile('wb', delete=False) as temp_file:
+        temp_file.writelines(updated_lines)
+        temp_file_path = temp_file.name
+
+    shutil.move(temp_file_path, DATA_FILE)  # Securely move the temporary file to the original file
+
+
 def change_master_password():
     if not is_logged:
         return
@@ -125,8 +151,10 @@ def change_master_password():
     updated_lines = []  # Re-encrypt all existing passwords with the new master password
 
     try:
+        acquire_lock()
         with open(DATA_FILE, "rb") as encrypted_file:
             is_current_line_first = True
+
             for line in encrypted_file:
                 salt = line[:SALT_SIZE]
                 encrypted_message = line[SALT_SIZE:].strip()
@@ -147,19 +175,19 @@ def change_master_password():
 
                 updated_lines.append(new_salt + new_encrypted_message + b'\n')
 
+        write_passwords_safely(updated_lines)
+
+        master_password_logged = master_password
+        messagebox.showinfo(title="Login", message="The master password has been successfully changed!")
+
+        release_lock()
+
+        delete_entries()
+        refresh_passwords_window()
+
     except Exception as e:
+        release_lock()
         messagebox.showinfo(title="Oops", message=f"Error changing master password! {e}")
-        return
-
-    # Write all the updated lines back to the file
-    with open(DATA_FILE, "wb") as encrypted_file:
-        encrypted_file.writelines(updated_lines)
-
-    master_password_logged = master_password
-    messagebox.showinfo(title="Login", message="The master password has been successfully changed!")
-
-    delete_entries()
-    refresh_passwords_window()
 
 
 # ---------------------------- PASSWORD GENERATOR ------------------------------- #
@@ -205,11 +233,16 @@ def add_password():
 
     try:
         encrypted_message = cipher.encrypt(message.encode())
+        acquire_lock()
+
         with open(DATA_FILE, "ab") as encrypted_file:
             encrypted_file.write(salt + encrypted_message + b'\n')
+
+        release_lock()
         delete_entries()
         refresh_passwords_window()
     except Exception as e:
+        release_lock()
         messagebox.showinfo(title="Oops", message=f"Error encrypting password! {e}")
 
 
@@ -243,10 +276,20 @@ def open_passwords_window():
 
     passwords_window.protocol("WM_DELETE_WINDOW", close_passwords_window)
 
-    passwords_text = Text(passwords_window, wrap="word", width=90, height=25)
-    passwords_text.pack(padx=10, pady=10)
+    frame = Frame(passwords_window)
+    frame.pack(fill=BOTH, expand=True)
+
+    scrollbar = Scrollbar(frame)
+    scrollbar.pack(side=RIGHT, fill=Y)
+
+    passwords_text = Text(frame, wrap="word", yscrollcommand=scrollbar.set, width=90, height=20)
+    passwords_text.pack(side=LEFT, fill=BOTH, expand=True)
+
+    scrollbar.config(command=passwords_text.yview)
 
     try:
+        acquire_lock()
+
         with open(DATA_FILE, "rb") as encrypted_file:
             for line in encrypted_file:
                 salt = line[:SALT_SIZE]
@@ -257,7 +300,10 @@ def open_passwords_window():
                 decrypted_message = cipher.decrypt(encrypted_message).decode()
                 passwords_text.insert(END, decrypted_message + "\n")
 
+        release_lock()
+
     except Exception as e:
+        release_lock()
         messagebox.showinfo(title="Oops", message=f"Error decrypting password! {e}")
         return
 
@@ -387,16 +433,19 @@ def delete_password():
     found = False
     decrypted_lines = []
 
-    # Read the file and search for the entry
-    with open(DATA_FILE, "rb") as encrypted_file:
-        is_current_line_first = True
-        for line in encrypted_file:
-            salt = line[:SALT_SIZE]
-            encrypted_message = line[SALT_SIZE:].strip()
-            user_key = derive_key(master_password_logged, salt)
-            cipher = Fernet(user_key)
+    try:
+        acquire_lock()
 
-            try:
+        # Read the file and search for the entry
+        with open(DATA_FILE, "rb") as encrypted_file:
+            is_current_line_first = True
+
+            for line in encrypted_file:
+                salt = line[:SALT_SIZE]
+                encrypted_message = line[SALT_SIZE:].strip()
+                user_key = derive_key(master_password_logged, salt)
+                cipher = Fernet(user_key)
+
                 decrypted_message = cipher.decrypt(encrypted_message).decode()
 
                 if is_current_line_first:
@@ -412,9 +461,12 @@ def delete_password():
                 else:
                     decrypted_lines.append((salt, decrypted_message))
 
-            except Exception as e:
-                messagebox.showinfo(title="Oops", message=f"Error decrypting password! {e}")
-                return
+        release_lock()
+
+    except Exception as e:
+        release_lock()
+        messagebox.showinfo(title="Oops", message=f"Error decrypting password! {e}")
+        return
 
     if not found:
         messagebox.showinfo(title="Oops", message="No matching entry found.")
