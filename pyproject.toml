@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "PyInstaller"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["PasswordManager"]
+
+[tool.setuptools.package-data]
+PasswordManager = ["resources/logo.png", "resources/logo.ico", "resources/logo.icns"]
+
+[tool.setuptools.options]
+include_package_data = true
+python_requires = ">=3.7"
+install_requires = [
+    "cffi",
+    "cryptography",
+    "pycparser",
+    "setuptools"
+]
