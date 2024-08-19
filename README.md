@@ -1,3 +1,5 @@
+[![Github All Releases](https://img.shields.io/github/downloads/sfaith3/PasswordManager/total.svg)](https://github.com/sFaith3/PasswordManager/releases)
+
 <p align="center">
   <img alt="password-manager-logo" src="https://github.com/user-attachments/assets/5d598f61-462a-4abd-8a33-ffe6a25ae928">
 </p>
