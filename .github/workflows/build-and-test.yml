@@ -57,7 +57,7 @@ jobs:
 
     - name: Copy macOS resources
       run: |
-        cp -R PasswordManager/resources/macos/* dist/resources/macos/
+        find PasswordManager/resources/macos -maxdepth 1 -type f -exec cp {} dist/resources/macos \;
 
     - name: Upload macOS build
       uses: actions/upload-artifact@v4
@@ -88,11 +88,11 @@ jobs:
 
     - name: Copy resources to build directory
       run: |
-        xcopy /Y /Q PasswordManager/resources/* dist/resources/
+        xcopy PasswordManager/resources/* dist/resources/ /E /EXCLUDE:PasswordManager/resources/macos/
 
     - name: Copy Windows resources
       run: |
-        xcopy /Y /Q PasswordManager/resources/windows/* dist/resources/windows/
+        xcopy PasswordManager/resources/windows/* dist/resources/windows/ /E /EXCLUDE:PasswordManager/resources/macos/
 
     - name: Upload Windows build
       uses: actions/upload-artifact@v4
