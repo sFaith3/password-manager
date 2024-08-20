@@ -49,14 +49,14 @@ jobs:
 
     - name: Build with PyInstaller
       run: |
-        pyinstaller --onefile --windowed --icon=PasswordManager/resources/logo.icns --name PasswordManager PasswordManager/main.py
+        pyinstaller --onefile --windowed --icon=PasswordManager/resources/macos/logo.icns --name PasswordManager PasswordManager/main.py
 
     - name: Copy resources to build directory
       run: |
-        cp -r PasswordManager/resources dist/resources
+        find PasswordManager/resources -maxdepth 1 -mindepth 1 ! -name windows -exec cp -r {} dist/resources/ \;
 
     - name: Upload macOS build
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: macos-build
         path: dist/
@@ -80,14 +80,15 @@ jobs:
 
     - name: Build with PyInstaller
       run: |
-        pyinstaller --onefile --windowed --icon=PasswordManager/resources/logo.ico --name PasswordManager PasswordManager/main.py
+        pyinstaller --onefile --windowed --icon=PasswordManager/resources/windows/logo.ico --name PasswordManager PasswordManager/main.py
 
     - name: Copy resources to build directory
       run: |
-        robocopy PasswordManager\resources dist\resources /e /NFL /NDL /NJH /NJS
+        robocopy /? # <--- Check if it's available
+        robocopy PasswordManager/resources dist/resources /e /NFL /NDL /NJH /NJS /XD macos
 
     - name: Upload Windows build
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: windows-build
         path: dist/
