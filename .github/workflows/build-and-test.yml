@@ -84,8 +84,7 @@ jobs:
 
     - name: Copy resources to build directory
       run: |
-        robocopy /? # <--- Check if it's available
-        robocopy PasswordManager/resources dist/resources /e /NFL /NDL /NJH /NJS /XD macos
+        xcopy PasswordManager\resources\* dist\resources\ /E /EXCLUDE:macos\
 
     - name: Upload Windows build
       uses: actions/upload-artifact@v4
