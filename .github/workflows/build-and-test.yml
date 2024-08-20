@@ -95,7 +95,6 @@ jobs:
     - name: Copy Windows resources
       run: |
         xcopy PasswordManager/resources/windows/* dist/resources/windows/ /E /I /Y
-        xcopy PasswordManager/resources/windows/* dist/resources/windows/
 
     - name: Upload Windows build
       uses: actions/upload-artifact@v4
