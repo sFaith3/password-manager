@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["PasswordManager"]
+where = ["."]
 exclude = ["tests"]
 
 [tool.setuptools.package-data]
