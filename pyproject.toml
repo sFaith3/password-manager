@@ -1,19 +1,31 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel", "PyInstaller"]
+requires = ["setuptools", "wheel", "PyInstaller"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["PasswordManager"]
+[project]
+name = "PasswordManager"
+version = "1.0.1"
+description = "An encrypted password manager made with Python for Windows and Mac."
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Samuel Balcells", email = "samuel.sbv3@gmail.com"}
+]
+dependencies = [
+    "cffi",
+    "cryptography",
+    "pycparser",
+    "setuptools",
+    "pytest",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["tests"]
 
 [tool.setuptools.package-data]
 PasswordManager = ["resources/logo.png", "resources/logo.ico", "resources/logo.icns"]
 
-[tool.setuptools.options]
-include_package_data = true
-python_requires = ">=3.7"
-install_requires = [
-    "cffi",
-    "cryptography",
-    "pycparser",
-    "setuptools"
-]
+[tool.pyinstaller]
+name = "PasswordManager"
+script = "PasswordManager/main.py"
