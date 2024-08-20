@@ -90,7 +90,7 @@ jobs:
 
     - name: Copy resources to build directory
       run: |
-        xcopy PasswordManager/resources/*.dist/resources/ /Y /I
+        xcopy PasswordManager/resources/* dist/resources/ /Y /I /EXCLUDE:PasswordManager/resources/windows/;PasswordManager/resources/macos/
 
     - name: Copy Windows resources
       run: |
