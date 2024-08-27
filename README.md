@@ -14,8 +14,8 @@ An encrypted password manager made with Python for Windows and Mac.
 ## Features
 - One file per user.
 - Master password to access.
-- A scrollable popup window to view and copy passwords.
-- Add, edit password, or delete.
 - Allows to change the master password.
+- A scrollable popup window to view and copy passwords.
+- Search, add, edit, or delete passwords.
 - A fully encrypted file very secure and robust. Be aware of the vulnerability of each machine where you run it.
 - System to avoid the file corruption. It is still recommended to make a backup of the data file.
