@@ -211,7 +211,7 @@ def generate_password():
 def find_password(website=None, email=None):
     decrypted_lines = []
     found = False
-    stored_password = None
+    stored_website = stored_email = stored_password = None
 
     try:
         acquire_lock()
@@ -232,16 +232,24 @@ def find_password(website=None, email=None):
                     continue
 
                 # Check if the entry matches the website and email
-                stored_website, stored_email, stored_password = decrypted_message.split(" | ")
+                current_website, current_email, current_password = decrypted_message.split(" | ")
+
+                if found:
+                    continue
 
                 if website and email:
-                    if stored_website == website and stored_email == email:
+                    if current_website == website and current_email == email:
+                        stored_website = current_website
+                        stored_email = current_email
+                        stored_password = current_password
                         found = True
-                        break
                 elif website:
-                    if stored_website == website:
+                    if current_website == website:
+                        stored_website = current_website
+                        stored_email = current_email
+                        stored_password = current_password
                         found = True
-                        break
+                        break  # Due to search purposes
 
     except Exception as e:
         release_lock()
@@ -280,6 +288,7 @@ def search_password():
 
     show_searched_password(title=stored_website,
                            content=f"Email: {stored_email}\nPassword: {stored_password}")
+    delete_entries()
 
 
 def add_password():
