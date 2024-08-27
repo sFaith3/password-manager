@@ -93,10 +93,11 @@ def login():
         login_button["state"] = "disabled"
         register_button["state"] = "disabled"
         change_button["state"] = "normal"
+        search_button["state"] = "normal"
         open_button["state"] = "normal"
         add_button["state"] = "normal"
         edit_button["state"] = "normal"
-        remove_button["state"] = "normal"
+        delete_button["state"] = "normal"
 
     delete_entries()
 
@@ -124,7 +125,7 @@ def register():
         encrypted_message = cipher.encrypt(master_password.encode())
         with open(DATA_FILE, "wb") as encrypted_file:
             encrypted_file.write(salt + encrypted_message + b'\n')  # Save the salt followed by the encrypted message
-        messagebox.showinfo(title="Oops", message=f"User registered.")
+        messagebox.showinfo(title="Register", message=f"User registered.")
     except Exception as e:
         messagebox.showinfo(title="Oops", message=f"Error encrypting password! {e}")
         delete_entries()
@@ -206,7 +207,81 @@ def generate_password():
     password_entry.insert(0, password)
 
 
-# ---------------------------- ADD/OPEN PASSWORDS ------------------------------- #
+# ---------------------------- PASSWORD MANAGER ------------------------------- #
+def find_password(website=None, email=None):
+    decrypted_lines = []
+    found = False
+    stored_password = None
+
+    try:
+        acquire_lock()
+        # Read the file and search for the entry
+        with open(DATA_FILE, "rb") as encrypted_file:
+            is_current_line_first = True
+            for line in encrypted_file:
+                salt = line[:SALT_SIZE]
+                encrypted_message = line[SALT_SIZE:].strip()
+                user_key = derive_key(master_password_logged, salt)
+
+                cipher = Fernet(user_key)
+                decrypted_message = cipher.decrypt(encrypted_message).decode()
+                decrypted_lines.append((salt, decrypted_message))  # Save the decrypted message with its salt
+
+                if is_current_line_first:
+                    is_current_line_first = False
+                    continue
+
+                # Check if the entry matches the website and email
+                stored_website, stored_email, stored_password = decrypted_message.split(" | ")
+
+                if website and email:
+                    if stored_website == website and stored_email == email:
+                        found = True
+                        break
+                elif website:
+                    if stored_website == website:
+                        found = True
+                        break
+
+    except Exception as e:
+        release_lock()
+        raise Exception(f"Error decrypting password! {e}")
+
+    release_lock()
+    return found, stored_website, stored_email, stored_password, decrypted_lines
+
+
+def show_searched_password(title, content):
+    result_window = Toplevel()
+    result_window.title(title)
+    result_window.iconphoto(False, logo_img)
+
+    text_widget = Text(result_window, wrap="word")
+    text_widget.insert("1.0", content)
+    text_widget.config(state="disabled")  # Make the text in the Text widget selectable and copyable
+    text_widget.pack(padx=10, pady=10, expand=True, fill="both")
+
+    result_window.geometry("300x150")
+
+
+def search_password():
+    if not is_logged:
+        return
+
+    website = website_entry.get()
+    if len(website) == 0:
+        messagebox.showinfo(title="Oops", message="Please fill in the Website field.")
+        return
+
+    found, stored_website, stored_email, stored_password, _ = find_password(website=website_entry.get())
+    if not found:
+        messagebox.showinfo(title=website, message="Password not found for that Website.")
+        return
+
+    show_searched_password(title=stored_website,
+                           content=f"Email: {stored_email}\nPassword: {stored_password}")
+
+
 def add_password():
     if not is_logged:
         return
@@ -307,13 +382,12 @@ def open_passwords_window():
         messagebox.showinfo(title="Oops", message=f"Error decrypting password! {e}")
         return
 
-    passwords_text.config(state="disabled")  # Make the text in the Text widget selectable and copyable
+    passwords_text.config(state="disabled")
 
     close_button = Button(passwords_window, text="Close", command=close_passwords_window)
     close_button.pack(pady=10)
 
 
-# ---------------------------- EDIT/UPDATE/DELETE PASSWORDS ------------------------------- #
 def edit_password():
     if not is_logged:
         return
@@ -325,46 +399,24 @@ def edit_password():
         messagebox.showinfo(title="Oops", message="Please fill in both the Website and Email fields.")
         return
 
-    found = False
-    decrypted_lines = []
-
     try:
-        # Read the file and search for the entry
-        with open(DATA_FILE, "rb") as encrypted_file:
-            is_current_line_first = True
-            for line in encrypted_file:
-                salt = line[:SALT_SIZE]
-                encrypted_message = line[SALT_SIZE:].strip()
-                user_key = derive_key(master_password_logged, salt)
+        found, _, _, stored_password, decrypted_lines = find_password(website=website, email=email)
 
-                cipher = Fernet(user_key)
-                decrypted_message = cipher.decrypt(encrypted_message).decode()
-                decrypted_lines.append((salt, decrypted_message))  # Save the decrypted message with its salt
-
-                if is_current_line_first:
-                    is_current_line_first = False
-                    continue
-
-                # Check if the entry matches the website and email
-                stored_website, stored_email, stored_password = decrypted_message.split(" | ")
-                if stored_website == website and stored_email == email:
-                    password_entry.delete(0, END)
-                    password_entry.insert(0, stored_password)
-                    edit_button.config(text="Update", command=update_password)
-                    add_button["state"] = "disabled"
-                    found = True
-
+        if found:
+            password_entry.delete(0, END)
+            password_entry.insert(0, stored_password)
+            edit_button.config(text="Update", command=update_password)
+            search_button["state"] = "disabled"
+            add_button["state"] = "disabled"
+            delete_button["state"] = "disabled"
+            # Store the decrypted lines globally, so they can be reused in save_edited_password
+            global decrypted_password_lines_for_edit
+            decrypted_password_lines_for_edit = decrypted_lines
+        else:
+            messagebox.showinfo(title="Oops", message="No matching entry found.")
+            delete_entries()
     except Exception as e:
         messagebox.showinfo(title="Oops", message=f"Error decrypting password! {e}")
-        return
-
-    if not found:
-        messagebox.showinfo(title="Oops", message="No matching entry found.")
-        delete_entries()
-    else:
-        # Store the decrypted lines globally, so they can be reused in save_edited_password
-        global decrypted_password_lines_for_edit
-        decrypted_password_lines_for_edit = decrypted_lines
 
 
 def update_password(is_deleting=False):
@@ -414,8 +466,10 @@ def update_password(is_deleting=False):
     else:
         messagebox.showinfo(title="Error", message="Failed to update the password.")
 
-    edit_button.config(text="Edit Password", command=edit_password)
+    edit_button.config(text="Edit", command=edit_password)
+    search_button["state"] = "normal"
     add_button["state"] = "normal"
+    delete_button["state"] = "normal"
     delete_entries()
 
 
@@ -516,7 +570,7 @@ master_password_entry = Entry(width=27)
 master_password_entry.grid(row=1, column=1, padx=(0, 5), sticky="EW")
 master_password_entry.focus()
 website_entry = Entry(width=45)
-website_entry.grid(row=2, column=1, columnspan=2, sticky="EW")
+website_entry.grid(row=2, column=1, columnspan=2, padx=(0, 5), sticky="EW")
 email_entry = Entry(width=45)
 email_entry.grid(row=3, column=1, columnspan=2, sticky="EW")
 email_entry.insert(0, "@")
@@ -526,13 +580,15 @@ password_entry.grid(row=4, column=1, padx=(0, 5), sticky="EW")
 # Buttons
 login_button = Button(text="Login", command=login)
 login_button.grid(row=1, column=2, sticky="EW")
-
 register_button = Button(text="Register", command=register)
 register_button.grid(row=1, column=3, sticky="EW")
-
 change_button = Button(text="Change", command=change_master_password)
 change_button.grid(row=1, column=4, sticky="EW")
 change_button["state"] = "disabled"
+
+search_button = Button(text="Search", command=search_password)
+search_button.grid(row=2, column=3, columnspan=2, sticky="EW")
+search_button["state"] = "disabled"
 
 generate_password_button = Button(text="Generate Password", command=generate_password)
 generate_password_button.grid(row=4, column=2, sticky="EW")
@@ -544,13 +600,11 @@ open_button["state"] = "disabled"
 add_button = Button(text="Add", command=add_password)
 add_button.grid(row=6, column=1, sticky="EW")
 add_button["state"] = "disabled"
-
-edit_button = Button(text="Edit Password", command=edit_password)
+edit_button = Button(text="Edit", command=edit_password)
 edit_button.grid(row=6, column=2, sticky="EW")
 edit_button["state"] = "disabled"
-
-remove_button = Button(text="Delete", command=delete_password)
-remove_button.grid(row=6, column=3, sticky="EW")
-remove_button["state"] = "disabled"
+delete_button = Button(text="Delete", command=delete_password)
+delete_button.grid(row=6, column=3, sticky="EW")
+delete_button["state"] = "disabled"
 
 window.mainloop()
